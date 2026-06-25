@@ -1,5 +1,8 @@
 import { Command } from "commander";
 
+import { registerAuthCommands } from "./commands/auth";
+import { registerConfigCommands } from "./commands/config";
+
 const program = new Command();
 
 program
@@ -7,13 +10,17 @@ program
   .description("GoDezk Workflow CLI")
   .version("0.1.0");
 
+// Register Commands
+registerAuthCommands(program);
+registerConfigCommands(program);
+
+// Parse CLI
 program.parse(process.argv);
 
-if (process.argv.length <= 2) {
-  console.log("");  
-  console.log("🚀 Welcome to GoDezk CLI");
+// Show welcome message if no command is provided
+if (!process.argv.slice(2).length) {
   console.log("");
-  console.log("Version : 0.1.0");
+  console.log("🚀 Welcome to GoDezk CLI");
   console.log("");
   console.log("Run 'gdk --help' to see available commands.");
 }
