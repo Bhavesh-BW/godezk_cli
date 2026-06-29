@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { registerAuthCommands } from "./commands/auth";
 import { registerConfigCommands } from "./commands/config";
 import { registerWorkflowCommands } from "./commands/workflow";
+import { registerInstallCommands } from "./commands/install";
 
 const program = new Command();
 
@@ -15,6 +16,7 @@ program
 registerAuthCommands(program);
 registerConfigCommands(program);
 registerWorkflowCommands(program);
+registerInstallCommands(program);
 
 // Parse CLI
 program.parse(process.argv);
