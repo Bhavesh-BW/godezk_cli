@@ -44,8 +44,10 @@ function buildClient(): AxiosInstance {
       }
       
       if (!error.response) {
-       return Promise.reject(new Error("Cannot connect to GoDezk server.")); 
+        return Promise.reject(new Error("Cannot connect to GoDezk server."));
       }
+
+      return Promise.reject(error);
     }
   );
 
