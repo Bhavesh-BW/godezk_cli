@@ -10,6 +10,8 @@ This document is the complete handover guide for the GoDezk CLI project.
 -   Workflow Catalog
 -   Workflow Installation
 -   Installed Workflow Management
+-   Deployment Management
+-   Execution Monitoring
 
 ## Open Issue
 
@@ -725,3 +727,221 @@ Suggested message:
 Improve backend/API error handling for uninstall operations. Keep the
 CLI flow unchanged. Translate database foreign-key violations into
 user-friendly API responses.
+
+------------------------------------------------------------------------
+
+# GoDezk CLI - Milestone 8: Deployment Management
+
+**Status:** Milestone 8 Complete ✅
+
+## Objective
+
+Implement deployment management commands for the CLI.
+
+This milestone starts **after** Installed Workflow Management is complete.
+
+------------------------------------------------------------------------
+
+## Domain Concept
+
+A **Deployment** is created from an **Installed Workflow**.
+
+Lifecycle:
+
+``` text
+Installed Workflow
+        ↓
+Deploy Create
+        ↓
+Deploy List / Show
+        ↓
+Activate / Deactivate
+        ↓
+Delete
+```
+
+Deployments reference installations via `installation_id`.
+
+------------------------------------------------------------------------
+
+## Architecture
+
+Maintains the existing layered architecture:
+
+``` text
+commands/deployment.ts
+        ↓
+api/deployments.ts
+        ↓
+client.ts
+        ↓
+Backend
+```
+
+------------------------------------------------------------------------
+
+## Files Created
+
+``` text
+src/types/deployment.ts
+src/api/deployments.ts
+src/commands/deployment.ts
+```
+
+## Files Modified
+
+``` text
+src/index.ts  (registered deployment commands, version bumped to 0.5.0)
+```
+
+------------------------------------------------------------------------
+
+## Commands Implemented
+
+``` bash
+gdk deploy list
+gdk deploy show <deployment-id>
+gdk deploy create <installation-id>
+gdk deploy activate <deployment-id>
+gdk deploy deactivate <deployment-id>
+gdk deploy delete <deployment-id>
+```
+
+All commands support:
+
+-   Authentication guard
+-   Organization guard
+-   Docker-style short ID resolution (last N characters of UUID)
+-   Friendly error messages
+-   Confirmation prompt before delete
+
+------------------------------------------------------------------------
+
+## API Endpoints Used
+
+-   GET    /api/workflows/deployments?org_id=<org_id>
+-   GET    /api/workflows/deployments/:id
+-   POST   /api/workflows/deployments
+-   POST   /api/workflows/deployments/:id/activate
+-   POST   /api/workflows/deployments/:id/deactivate
+-   DELETE /api/workflows/deployments/:id
+
+------------------------------------------------------------------------
+
+## Build Verification
+
+-   `npm run build` compiles successfully with zero errors.
+-   No breaking changes to existing commands.
+
+------------------------------------------------------------------------
+
+## Complete CLI Command Tree (v0.5.0)
+
+``` text
+gdk
+├── auth
+│   ├── login
+│   ├── logout
+│   └── whoami
+├── config
+│   ├── set <key> <value>
+│   ├── get <key>
+│   └── list
+├── workflow
+│   ├── list
+│   ├── show <catalog-id>
+│   └── install <catalog-id>
+├── install
+│   ├── list
+│   ├── show <installation-id>
+│   ├── activate <installation-id>
+│   ├── deactivate <installation-id>
+│   └── uninstall <installation-id>
+└── deploy
+    ├── list
+    ├── show <deployment-id>
+    ├── create <installation-id>
+    ├── activate <deployment-id>
+    ├── deactivate <deployment-id>
+    └── delete <deployment-id>
+└── exec
+    ├── list
+    ├── show <execution-id>
+    ├── logs <execution-id>
+    ├── watch <execution-id>
+    └── cancel <execution-id>
+```
+
+------------------------------------------------------------------------
+
+## Next Milestone
+
+All current client milestones are complete. The CLI now fully handles:
+- Config, Login & Auth
+- Catalog Discovery & Installation
+- Installation Activation & Management
+- Deployment Creation & Activation
+- Execution List, Show, Logs, Cancel & Real-time Watching
+
+------------------------------------------------------------------------
+
+# GoDezk CLI - Milestone 9: Execution Monitoring
+
+**Status:** Milestone 9 Complete ✅
+
+## Objective
+
+Implement execution monitoring commands to inspect and track running workflow instances.
+
+------------------------------------------------------------------------
+
+## Domain Concept
+
+An **Execution** represents a running instance of a **Deployment**.
+
+Lifecycle / Inspection Flow:
+
+``` text
+Deployment Action
+        ↓
+Exec List / Show
+        ↓
+Exec Logs (Historical) / Exec Watch (Real-time)
+        ↓
+Exec Cancel (Optional)
+```
+
+------------------------------------------------------------------------
+
+## Files Created
+
+``` text
+src/types/execution.ts
+src/api/executions.ts
+src/commands/exec.ts
+```
+
+## Files Modified
+
+``` text
+src/index.ts (registered exec commands, version bumped to 0.6.0)
+```
+
+------------------------------------------------------------------------
+
+## Commands Implemented
+
+``` bash
+gdk exec list
+gdk exec show <execution-id>
+gdk exec logs <execution-id>
+gdk exec watch <execution-id>
+gdk exec cancel <execution-id>
+```
+
+All commands support:
+- Authentication & Org check
+- Short ID Resolution (last N characters of UUID)
+- Polling in real-time (`gdk exec watch` with custom interval)
+- Friendly status icons (🔄, ✅, ❌, 🚫, ⏳)
+- Confirmation dialog for cancelling executions
