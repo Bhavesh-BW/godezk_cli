@@ -127,7 +127,7 @@ export function registerInstallCommands(program: Command): void {
         console.log("Installation Details");
         console.log("--------------------");
         console.log(`ID               : ${i.id}`);
-        console.log(`Name             : ${i.name ?? "-"}`);
+        console.log(`Name             : ${i.catalog_name ?? i.name ?? "-"}`);
         console.log(`Catalog ID       : ${i.catalog_id}`);
         console.log(`Status           : ${i.status}`);
         console.log(`Version          : ${i.catalog_version ?? "-"}`);

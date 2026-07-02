@@ -73,3 +73,32 @@ export interface InstallWorkflowResponse {
   success: boolean;
   installation: WorkflowInstallation;
 }
+
+export interface RequirementsCheckResponse {
+  success: boolean;
+  requirements: Array<{
+    id: string;
+    requirement_key: string;
+    requirement_label: string;
+    requirement_type: string;
+    status: string;
+    check_url?: string;
+  }>;
+  all_satisfied: boolean;
+  blocking_count: number;
+}
+
+export interface InstallationConfigResponse {
+  success: boolean;
+  params: Array<{
+    id: string;
+    param_key: string;
+    param_label: string;
+    param_type: string;
+    default_value?: string | null;
+    current_value?: string | null;
+    required: boolean;
+  }>;
+  node_configs?: Record<string, unknown>;
+}
+

@@ -12,6 +12,7 @@ export interface WorkflowInstallation {
 
   // Joined fields from workflow_catalog
   name?: string;
+  catalog_name?: string;
   description?: string;
   category?: string;
   workflow_type?: string;

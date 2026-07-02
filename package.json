@@ -4,27 +4,22 @@
   "description": "GoDezk Workflow CLI",
   "author": "GoDezk",
   "license": "ISC",
-
   "type": "commonjs",
-
   "bin": {
     "gdk": "./bin/gdk"
   },
-
   "main": "dist/index.js",
-
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts"
+    "dev": "ts-node src/index.ts",
+    "prepare": "npm run build"
   },
-
   "keywords": [
     "godezk",
     "cli",
     "workflow"
   ],
-
   "dependencies": {
     "axios": "^1.8.1",
     "chalk": "^5.6.2",
@@ -33,13 +28,11 @@
     "inquirer": "^12.6.2",
     "ora": "^9.0.0"
   },
-
   "devDependencies": {
     "@types/node": "^24.5.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
-
   "engines": {
     "node": ">=18"
   }

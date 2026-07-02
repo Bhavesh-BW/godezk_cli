@@ -1,6 +1,15 @@
 import { Command } from "commander";
+import inquirer from "inquirer";
 import { isAuthenticated, getOrgId } from "../config/config";
-import { getWorkflowCatalog, getWorkflowCatalogItem, installWorkflow } from "../api/workflows";
+import {
+  getWorkflowCatalog,
+  getWorkflowCatalogItem,
+  installWorkflow,
+  getRequirementsCheck,
+  getInstallationConfig,
+  updateInstallationConfig,
+} from "../api/workflows";
+import { getInstallations, uninstallInstallation } from "../api/installations";
 
 async function resolveWorkflowId(id: string): Promise<string> {
   if (id.length === 36) return id;
@@ -17,6 +26,36 @@ async function resolveWorkflowId(id: string): Promise<string> {
     console.log("");
     matches.forEach((w) => {
       console.log(`  ${w.id}  —  ${w.name}`);
+    });
+    console.log("");
+    console.error("Please use more characters to disambiguate.");
+    process.exit(1);
+  }
+  return matches[0].id;
+}
+
+async function resolveInstallationId(id: string): Promise<string> {
+  if (id.length === 36) return id;
+
+  const orgId = getOrgId();
+  if (!orgId) {
+    console.error("❌ Organization not configured. Run 'gdk auth login' to set your org.");
+    process.exit(1);
+  }
+
+  const data = await getInstallations(orgId);
+  const installations = data.installations ?? [];
+  const matches = installations.filter((i) => i.id.endsWith(id));
+
+  if (matches.length === 0) {
+    console.error("❌ Installation ID not found. Run 'gdk install list' to see valid IDs.");
+    process.exit(1);
+  }
+  if (matches.length > 1) {
+    console.error("❌ Multiple installations match that ID suffix:");
+    console.log("");
+    matches.forEach((i) => {
+      console.log(`  ${i.id}  —  ${i.name ?? "Unknown"}`);
     });
     console.log("");
     console.error("Please use more characters to disambiguate.");
@@ -49,7 +88,9 @@ export function registerWorkflowCommands(program: Command): void {
     .command("list")
     .description("List published workflows in the catalog")
     .option("--category <category>", "Filter by category")
-    .action(async (options: { category?: string }) => {
+    .option("--json", "Output raw JSON data")
+    .option("--quiet", "Only display IDs")
+    .action(async (options: { category?: string; json?: boolean; quiet?: boolean }) => {
       if (!isAuthenticated()) {
         console.log("❌ Not logged in. Run: gdk auth login");
         return;
@@ -64,6 +105,16 @@ export function registerWorkflowCommands(program: Command): void {
         }
 
         const catalog = await getWorkflowCatalog(params);
+
+        if (options.json) {
+          console.log(JSON.stringify(catalog, null, 2));
+          return;
+        }
+
+        if (options.quiet) {
+          catalog.forEach((w) => console.log(w.id));
+          return;
+        }
 
         if (catalog.length === 0) {
           console.log("No workflows found.");
@@ -100,7 +151,9 @@ export function registerWorkflowCommands(program: Command): void {
     .command("show")
     .description("Show workflow catalog details")
     .argument("<workflow-id>", "Workflow catalog ID")
-    .action(async (id: string) => {
+    .option("--json", "Output raw JSON data")
+    .option("--quiet", "Only display IDs")
+    .action(async (id: string, options: { json?: boolean; quiet?: boolean }) => {
       if (!isAuthenticated()) {
         console.log("❌ Not logged in. Run: gdk auth login");
         return;
@@ -108,7 +161,19 @@ export function registerWorkflowCommands(program: Command): void {
 
       try {
         const fullId = await resolveWorkflowId(id);
+
+        if (options.quiet) {
+          console.log(fullId);
+          return;
+        }
+
         const data = await getWorkflowCatalogItem(fullId);
+
+        if (options.json) {
+          console.log(JSON.stringify(data, null, 2));
+          return;
+        }
+
         const c = data.catalog;
 
         console.log("");
@@ -185,7 +250,56 @@ export function registerWorkflowCommands(program: Command): void {
 
       try {
         const fullId = await resolveWorkflowId(id);
-        const result = await installWorkflow(fullId, orgId);
+
+        // 1. Run preflight requirements-check
+        console.log("\n🔍 Running preflight requirements check...");
+        const reqCheck = await getRequirementsCheck(fullId, orgId);
+        
+        console.log("\nRequirements Status:");
+        console.log("--------------------");
+        reqCheck.requirements.forEach((req) => {
+          const satisfied = req.status === "satisfied" || req.status === "configurable";
+          const statusSymbol = satisfied ? "✓" : "❌";
+          const detail = req.check_url ? ` (at ${req.check_url})` : "";
+          console.log(`  ${statusSymbol} ${req.requirement_label} [${req.requirement_key}] — ${req.status}${detail}`);
+        });
+
+        if (!reqCheck.all_satisfied && reqCheck.blocking_count > 0) {
+          console.log(`\n❌ Install blocked: ${reqCheck.blocking_count} missing requirement(s).`);
+          process.exit(1);
+        }
+
+        // 2. Fetch parameter metadata for prompting
+        const catalogData = await getWorkflowCatalogItem(fullId);
+        const configs: Record<string, unknown> = {};
+
+        if (catalogData.params && catalogData.params.length > 0) {
+          console.log("\nConfigure Parameters:");
+          console.log("---------------------");
+          const prompts = catalogData.params.map((p) => {
+            const isBool = p.param_type === "boolean" || p.param_type === "bool";
+            const defVal = p.default_value;
+            return {
+              type: isBool ? "confirm" : "input",
+              name: p.param_key,
+              message: `${p.param_label} [${p.param_key}]:`,
+              default: isBool 
+                ? (defVal === "true" || (defVal as any) === true)
+                : defVal ?? undefined,
+              validate: (value: any) => {
+                if (p.required && (value === undefined || value === "")) {
+                  return `${p.param_label} is required.`;
+                }
+                return true;
+              }
+            };
+          });
+          const answers = await inquirer.prompt(prompts);
+          Object.assign(configs, answers);
+        }
+
+        // 3. Trigger installation
+        const result = await installWorkflow(fullId, orgId, configs);
 
         console.log("");
         console.log(`✅ Workflow installed successfully.`);
@@ -198,6 +312,62 @@ export function registerWorkflowCommands(program: Command): void {
           err?.response?.data?.error ||
           err?.message ||
           "Failed to install workflow.";
+        console.error(`❌ ${message}`);
+        process.exit(1);
+      }
+    });
+
+  workflow
+    .command("config")
+    .description("Configure parameters for an installed workflow")
+    .argument("<installation-id>", "Installation ID (or last 4+ digits of UUID)")
+    .action(async (id: string) => {
+      if (!isAuthenticated()) {
+        console.log("❌ Not logged in. Run: gdk auth login");
+        return;
+      }
+
+      try {
+        const fullId = await resolveInstallationId(id);
+        const data = await getInstallationConfig(fullId);
+
+        if (!data.params || data.params.length === 0) {
+          console.log("No configurable parameters for this installation.");
+          return;
+        }
+
+        console.log(`\nConfigure parameters for installation ${fullId.slice(-8)}:`);
+        console.log("-------------------------------------------------");
+        
+        const prompts = data.params.map((p) => {
+          const isBool = p.param_type === "boolean" || p.param_type === "bool";
+          const currentVal = p.current_value;
+          const defVal = p.default_value;
+          return {
+            type: isBool ? "confirm" : "input",
+            name: p.param_key,
+            message: `${p.param_label} [${p.param_key}]:`,
+            default: currentVal !== undefined && currentVal !== null
+              ? (isBool ? (currentVal === "true" || (currentVal as any) === true) : currentVal)
+              : (isBool ? (defVal === "true" || (defVal as any) === true) : defVal ?? undefined),
+            validate: (value: any) => {
+              if (p.required && (value === undefined || value === "")) {
+                return `${p.param_label} is required.`;
+              }
+              return true;
+            }
+          };
+        });
+
+        const answers = await inquirer.prompt(prompts);
+        await updateInstallationConfig(fullId, answers);
+
+        console.log("\n✅ Configuration updated successfully.");
+      } catch (err: any) {
+        const message =
+          err?.response?.data?.error ||
+          err?.message ||
+          "Failed to update configurations.";
         console.error(`❌ ${message}`);
         process.exit(1);
       }
